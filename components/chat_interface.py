@@ -15,6 +15,7 @@ from utils.session_manager import (
     has_dataframe,
     ChatMessage
 )
+from utils.error_handler import handle_query_error, ErrorCategory
 
 logger = logging.getLogger(__name__)
 
@@ -114,7 +115,7 @@ def handle_user_input():
     """
     # Check if data is loaded
     if not has_dataframe():
-        st.warning("Please upload a dataset before asking questions.")
+        error_info = handle_query_error("No dataset loaded", None, show_ui=True)
         return None
     
     # Create input field with unique key to prevent conflicts
