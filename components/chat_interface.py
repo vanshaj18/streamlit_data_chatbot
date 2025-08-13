@@ -5,6 +5,7 @@ Chat interface components for natural language queries.
 import streamlit as st
 import matplotlib.pyplot as plt
 import plotly.graph_objects as go
+import logging
 from typing import Any, Optional
 from datetime import datetime
 
@@ -14,6 +15,8 @@ from utils.session_manager import (
     has_dataframe,
     ChatMessage
 )
+
+logger = logging.getLogger(__name__)
 
 
 def display_chat_history():
@@ -71,26 +74,31 @@ def _render_message(message: ChatMessage):
 
 def _render_chart(chart_data: Any):
     """
-    Render chart data based on its type.
+    Render chart data based on its type using the visualization system.
     
     Args:
-        chart_data: Chart data (matplotlib figure or plotly figure)
+        chart_data: Chart data (matplotlib figure, plotly figure, or other)
     """
+    from components.visualization import render_chart, handle_chart_error
+    
     try:
-        # Handle matplotlib figures
-        if hasattr(chart_data, 'savefig'):
-            st.pyplot(chart_data)
+        # Use the universal chart renderer
+        success = render_chart(
+            chart_data=chart_data,
+            title=None,  # Title is handled by the chat message context
+            fallback_message="The chart could not be displayed in the chat."
+        )
         
-        # Handle plotly figures
-        elif hasattr(chart_data, 'show'):
-            st.plotly_chart(chart_data, use_container_width=True)
-        
-        # Handle other chart types or raw data
-        else:
-            st.write(chart_data)
+        if not success:
+            # If rendering failed, the error is already handled by render_chart
+            logger.warning("Chart rendering failed, error already displayed")
             
     except Exception as e:
-        st.error(f"Failed to render chart: {str(e)}")
+        # Final fallback for unexpected errors
+        handle_chart_error(
+            error_message=str(e),
+            custom_message="An unexpected error occurred while displaying the chart."
+        )
 
 
 def handle_user_input():
@@ -192,18 +200,10 @@ def render_chat_interface():
     # Handle user input
     user_query = handle_user_input()
     
-    # If there's a new query, it will be processed by the main app
-    # The actual query processing will be handled in task 5 (PandasAI integration)
+    # If there's a new query, set it as pending for the main app to process
     if user_query:
-        # For now, show a placeholder response since PandasAI isn't integrated yet
-        st.info("Query received! PandasAI integration will be implemented in task 5.")
-        
-        # Add a placeholder response to demonstrate the interface
-        add_message(
-            role="agent",
-            content="I received your query, but PandasAI integration is not yet implemented. This will be completed in task 5.",
-            message_type="text"
-        )
+        # Store the query for processing by the main application
+        st.session_state.pending_query = user_query
         st.rerun()
 
 
