@@ -9,6 +9,7 @@ from typing import Optional, Tuple, Dict, Any
 from datetime import datetime
 from utils.session_manager import update_dataframe, get_file_info
 from utils.session_manager import clear_session
+from utils.error_handler import handle_file_error, safe_execute, ErrorCategory
 
 
 # File size limit in bytes (50MB)
@@ -28,20 +29,30 @@ def validate_file(uploaded_file) -> Tuple[bool, str]:
     Returns:
         Tuple[bool, str]: (is_valid, error_message)
     """
-    if uploaded_file is None:
-        return False, "No file uploaded"
-    
-    # Check file size
-    if uploaded_file.size > MAX_FILE_SIZE:
-        size_mb = uploaded_file.size / (1024 * 1024)
-        return False, f"File size ({size_mb:.1f}MB) exceeds the 50MB limit"
-    
-    # Check file extension
-    file_extension = uploaded_file.name.split('.')[-1].lower()
-    if file_extension not in SUPPORTED_TYPES:
-        return False, f"Unsupported file format. Please upload a CSV or Excel file (.csv, .xlsx, .xls)"
-    
-    return True, ""
+    try:
+        if uploaded_file is None:
+            error_info = handle_file_error("No file uploaded", None, show_ui=False)
+            return False, error_info.user_message
+        
+        # Check file size
+        if uploaded_file.size > MAX_FILE_SIZE:
+            size_mb = uploaded_file.size / (1024 * 1024)
+            error_msg = f"File size ({size_mb:.1f}MB) exceeds the 50MB limit"
+            error_info = handle_file_error(error_msg, uploaded_file.name, show_ui=False)
+            return False, error_info.user_message
+        
+        # Check file extension
+        file_extension = uploaded_file.name.split('.')[-1].lower()
+        if file_extension not in SUPPORTED_TYPES:
+            error_msg = f"Unsupported file format: {file_extension}"
+            error_info = handle_file_error(error_msg, uploaded_file.name, show_ui=False)
+            return False, error_info.user_message
+        
+        return True, ""
+        
+    except Exception as e:
+        error_info = handle_file_error(e, uploaded_file.name if uploaded_file else None, show_ui=False)
+        return False, error_info.user_message
 
 
 def load_dataframe(uploaded_file) -> Tuple[Optional[pd.DataFrame], str]:
@@ -54,7 +65,7 @@ def load_dataframe(uploaded_file) -> Tuple[Optional[pd.DataFrame], str]:
     Returns:
         Tuple[Optional[pd.DataFrame], str]: (dataframe, error_message)
     """
-    try:
+    def _load_dataframe_internal():
         file_extension = uploaded_file.name.split('.')[-1].lower()
         
         # Reset file pointer to beginning
@@ -72,32 +83,33 @@ def load_dataframe(uploaded_file) -> Tuple[Optional[pd.DataFrame], str]:
                 except UnicodeDecodeError:
                     continue
             else:
-                return None, "Unable to read CSV file. Please check the file encoding."
+                raise ValueError("Unable to read CSV file with any supported encoding")
                 
         elif file_extension in ['xlsx', 'xls']:
-            try:
-                df = pd.read_excel(uploaded_file)
-            except Exception as e:
-                return None, f"Unable to read Excel file: {str(e)}"
+            df = pd.read_excel(uploaded_file)
         else:
-            return None, f"Unsupported file format: {file_extension}"
+            raise ValueError(f"Unsupported file format: {file_extension}")
         
         # Validate DataFrame
         if df.empty:
-            return None, "The uploaded file appears to be empty"
+            raise ValueError("The uploaded file appears to be empty")
         
         # Check for reasonable number of columns (prevent memory issues)
         if len(df.columns) > 1000:
-            return None, "File has too many columns (>1000). Please use a smaller dataset."
+            raise ValueError("File has too many columns (>1000). Please use a smaller dataset.")
         
         # Check for reasonable number of rows
         if len(df) > 1000000:
-            return None, "File has too many rows (>1M). Please use a smaller dataset."
+            raise ValueError("File has too many rows (>1M). Please use a smaller dataset.")
         
+        return df
+    
+    try:
+        df = _load_dataframe_internal()
         return df, ""
-        
     except Exception as e:
-        return None, f"Error processing file: {str(e)}"
+        error_info = handle_file_error(e, uploaded_file.name, show_ui=False)
+        return None, error_info.user_message
 
 
 def display_data_preview(df: pd.DataFrame, file_info: Dict[str, Any]) -> None:
@@ -160,6 +172,7 @@ def render_file_upload():
         is_valid, error_message = validate_file(uploaded_file)
         
         if not is_valid:
+            # Error message is already user-friendly from validation
             st.error(f"❌ {error_message}")
             return
         
@@ -169,6 +182,7 @@ def render_file_upload():
             df, load_error = load_dataframe(uploaded_file)
             
             if load_error:
+                # Error message is already user-friendly from load_dataframe
                 st.error(f"❌ {load_error}")
                 return
             
