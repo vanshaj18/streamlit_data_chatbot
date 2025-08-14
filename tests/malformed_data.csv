@@ -1,0 +1,7 @@
+name,age,salary,department
+Alice,25,50000,Engineering
+Bob,30,60000
+Carol,35,70000,Marketing,Extra Column
+David,40,80000,Sales
+Eve,45,90000,Engineering,Another Extra,Even More
+Frank,50,100000,Marketing
