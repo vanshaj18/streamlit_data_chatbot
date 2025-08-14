@@ -1,0 +1,16 @@
+product_id,product_name,category,price,quantity_sold,revenue,date,region
+P001,Laptop Pro,Electronics,1299.99,45,58499.55,2024-01-15,North America
+P002,Wireless Mouse,Electronics,29.99,120,3598.80,2024-01-15,North America
+P003,Office Chair,Furniture,249.99,30,7499.70,2024-01-15,North America
+P004,Standing Desk,Furniture,599.99,15,8999.85,2024-01-15,North America
+P005,Coffee Maker,Appliances,89.99,60,5399.40,2024-01-15,North America
+P006,Smartphone,Electronics,799.99,80,63999.20,2024-01-16,Europe
+P007,Tablet,Electronics,399.99,50,19999.50,2024-01-16,Europe
+P008,Headphones,Electronics,149.99,90,13499.10,2024-01-16,Europe
+P009,Bookshelf,Furniture,179.99,25,4499.75,2024-01-16,Europe
+P010,Blender,Appliances,69.99,40,2799.60,2024-01-16,Europe
+P011,Gaming Keyboard,Electronics,129.99,35,4549.65,2024-01-17,Asia
+P012,Monitor,Electronics,299.99,55,16499.45,2024-01-17,Asia
+P013,Desk Lamp,Furniture,49.99,70,3499.30,2024-01-17,Asia
+P014,Air Purifier,Appliances,199.99,20,3999.80,2024-01-17,Asia
+P015,Webcam,Electronics,79.99,65,5199.35,2024-01-17,Asia

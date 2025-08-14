@@ -1,0 +1,16 @@
+date,account_type,transaction_type,amount,balance,description,category
+2024-01-01,Checking,Deposit,5000.00,5000.00,Salary,Income
+2024-01-02,Checking,Withdrawal,-1200.00,3800.00,Rent Payment,Housing
+2024-01-03,Checking,Withdrawal,-150.00,3650.00,Groceries,Food
+2024-01-04,Savings,Deposit,1000.00,11000.00,Transfer from Checking,Transfer
+2024-01-05,Checking,Withdrawal,-1000.00,2650.00,Transfer to Savings,Transfer
+2024-01-06,Checking,Withdrawal,-80.00,2570.00,Utilities,Utilities
+2024-01-07,Checking,Withdrawal,-45.00,2525.00,Internet,Utilities
+2024-01-08,Checking,Withdrawal,-200.00,2325.00,Car Payment,Transportation
+2024-01-09,Checking,Withdrawal,-60.00,2265.00,Gas,Transportation
+2024-01-10,Checking,Withdrawal,-120.00,2145.00,Groceries,Food
+2024-01-11,Checking,Withdrawal,-25.00,2120.00,Coffee Shop,Food
+2024-01-12,Checking,Withdrawal,-300.00,1820.00,Insurance,Insurance
+2024-01-13,Checking,Deposit,2500.00,4320.00,Freelance Work,Income
+2024-01-14,Checking,Withdrawal,-100.00,4220.00,Dining Out,Food
+2024-01-15,Savings,Deposit,500.00,11500.00,Monthly Savings,Transfer

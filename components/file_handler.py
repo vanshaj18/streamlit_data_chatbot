@@ -57,7 +57,7 @@ def validate_file(uploaded_file) -> Tuple[bool, str]:
 
 def load_dataframe(uploaded_file) -> Tuple[Optional[pd.DataFrame], str]:
     """
-    Convert uploaded file to pandas DataFrame.
+    Convert uploaded file to pandas DataFrame with optimizations for large files.
     
     Args:
         uploaded_file: Streamlit UploadedFile object
@@ -67,26 +67,53 @@ def load_dataframe(uploaded_file) -> Tuple[Optional[pd.DataFrame], str]:
     """
     def _load_dataframe_internal():
         file_extension = uploaded_file.name.split('.')[-1].lower()
+        file_size_mb = uploaded_file.size / (1024 * 1024)
         
         # Reset file pointer to beginning
         uploaded_file.seek(0)
         
         if file_extension == 'csv':
-            # Try different encodings for CSV files
-            encodings = ['utf-8', 'latin-1', 'cp1252', 'iso-8859-1']
-            
-            for encoding in encodings:
-                try:
-                    uploaded_file.seek(0)
-                    df = pd.read_csv(uploaded_file, encoding=encoding)
-                    break
-                except UnicodeDecodeError:
-                    continue
+            # For large files, use chunked reading and optimized parameters
+            if file_size_mb > 10:  # Files larger than 10MB
+                # Try different encodings for CSV files
+                encodings = ['utf-8', 'latin-1', 'cp1252', 'iso-8859-1']
+                
+                for encoding in encodings:
+                    try:
+                        uploaded_file.seek(0)
+                        # Use optimized parameters for large files
+                        df = pd.read_csv(
+                            uploaded_file, 
+                            encoding=encoding,
+                            low_memory=False,  # Prevent mixed type warnings
+                            dtype_backend='numpy_nullable',  # Use nullable dtypes for better memory efficiency
+                            engine='c'  # Use faster C engine
+                        )
+                        break
+                    except UnicodeDecodeError:
+                        continue
+                else:
+                    raise ValueError("Unable to read CSV file with any supported encoding")
             else:
-                raise ValueError("Unable to read CSV file with any supported encoding")
+                # Standard loading for smaller files
+                encodings = ['utf-8', 'latin-1', 'cp1252', 'iso-8859-1']
+                
+                for encoding in encodings:
+                    try:
+                        uploaded_file.seek(0)
+                        df = pd.read_csv(uploaded_file, encoding=encoding)
+                        break
+                    except UnicodeDecodeError:
+                        continue
+                else:
+                    raise ValueError("Unable to read CSV file with any supported encoding")
                 
         elif file_extension in ['xlsx', 'xls']:
-            df = pd.read_excel(uploaded_file)
+            # For Excel files, use optimized engine
+            if file_size_mb > 5:  # Files larger than 5MB
+                df = pd.read_excel(uploaded_file, engine='openpyxl' if file_extension == 'xlsx' else 'xlrd')
+            else:
+                df = pd.read_excel(uploaded_file)
         else:
             raise ValueError(f"Unsupported file format: {file_extension}")
         
@@ -102,6 +129,9 @@ def load_dataframe(uploaded_file) -> Tuple[Optional[pd.DataFrame], str]:
         if len(df) > 1000000:
             raise ValueError("File has too many rows (>1M). Please use a smaller dataset.")
         
+        # Optimize data types to reduce memory usage
+        df = _optimize_dataframe_dtypes(df)
+        
         return df
     
     try:
@@ -110,6 +140,59 @@ def load_dataframe(uploaded_file) -> Tuple[Optional[pd.DataFrame], str]:
     except Exception as e:
         error_info = handle_file_error(e, uploaded_file.name, show_ui=False)
         return None, error_info.user_message
+
+
+def _optimize_dataframe_dtypes(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Optimize DataFrame data types to reduce memory usage.
+    
+    Args:
+        df: Input DataFrame
+        
+    Returns:
+        pd.DataFrame: Optimized DataFrame
+    """
+    try:
+        # Create a copy to avoid modifying the original
+        optimized_df = df.copy()
+        
+        # Optimize numeric columns
+        for col in optimized_df.select_dtypes(include=['int64']).columns:
+            col_min = optimized_df[col].min()
+            col_max = optimized_df[col].max()
+            
+            # Downcast integers
+            if col_min >= -128 and col_max <= 127:
+                optimized_df[col] = optimized_df[col].astype('int8')
+            elif col_min >= -32768 and col_max <= 32767:
+                optimized_df[col] = optimized_df[col].astype('int16')
+            elif col_min >= -2147483648 and col_max <= 2147483647:
+                optimized_df[col] = optimized_df[col].astype('int32')
+        
+        # Optimize float columns
+        for col in optimized_df.select_dtypes(include=['float64']).columns:
+            # Try to downcast to float32 if precision allows
+            original_values = optimized_df[col].dropna()
+            if len(original_values) > 0:
+                float32_values = original_values.astype('float32')
+                if original_values.equals(float32_values.astype('float64')):
+                    optimized_df[col] = optimized_df[col].astype('float32')
+        
+        # Convert object columns to category if they have low cardinality
+        for col in optimized_df.select_dtypes(include=['object']).columns:
+            unique_count = optimized_df[col].nunique()
+            total_count = len(optimized_df[col])
+            
+            # Convert to category if less than 50% unique values and more than 2 unique values
+            if unique_count < total_count * 0.5 and unique_count > 2:
+                optimized_df[col] = optimized_df[col].astype('category')
+        
+        return optimized_df
+        
+    except Exception as e:
+        # If optimization fails, return original DataFrame
+        st.warning(f"Data type optimization failed: {str(e)}. Using original data types.")
+        return df
 
 
 def display_data_preview(df: pd.DataFrame, file_info: Dict[str, Any]) -> None:

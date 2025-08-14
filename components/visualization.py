@@ -1,5 +1,5 @@
 """
-Visualization rendering components.
+Visualization rendering components with caching and responsive sizing.
 """
 
 import streamlit as st
@@ -13,22 +13,30 @@ import logging
 from typing import Any, Optional, Union, Dict, Tuple
 import io
 import base64
+import hashlib
+import pickle
 from utils.error_handler import handle_viz_error, ErrorCategory
 
 
 logger = logging.getLogger(__name__)
 
+# Chart cache to store rendered charts
+_CHART_CACHE = {}
+_CACHE_MAX_SIZE = 50  # Maximum number of cached charts
+
 
 def render_matplotlib_chart(fig: matplotlib.figure.Figure, 
                           title: Optional[str] = None,
-                          use_container_width: bool = True) -> bool:
+                          use_container_width: bool = True,
+                          cache_key: Optional[str] = None) -> bool:
     """
-    Render matplotlib charts in Streamlit.
+    Render matplotlib charts in Streamlit with caching and responsive sizing.
     
     Args:
         fig: Matplotlib figure object
         title: Optional title for the chart
         use_container_width: Whether to use full container width
+        cache_key: Optional cache key for chart caching
         
     Returns:
         bool: True if rendering successful, False otherwise
@@ -43,15 +51,28 @@ def render_matplotlib_chart(fig: matplotlib.figure.Figure,
             logger.error(f"Expected matplotlib Figure, got {type(fig)}")
             return False
         
+        # Check cache first if cache_key is provided
+        if cache_key and cache_key in _CHART_CACHE:
+            cached_chart = _CHART_CACHE[cache_key]
+            if title:
+                st.subheader(title)
+            st.image(cached_chart, use_column_width=use_container_width)
+            logger.info("Rendered matplotlib chart from cache")
+            return True
+        
         # Add title if provided
         if title:
             st.subheader(title)
         
-        # Configure figure for better display
-        fig.tight_layout()
+        # Configure figure for responsive display
+        _configure_matplotlib_responsive(fig)
         
         # Render the chart
         st.pyplot(fig, use_container_width=use_container_width)
+        
+        # Cache the chart if cache_key is provided
+        if cache_key:
+            _cache_matplotlib_chart(fig, cache_key)
         
         # Clean up to prevent memory leaks
         plt.close(fig)
@@ -64,18 +85,83 @@ def render_matplotlib_chart(fig: matplotlib.figure.Figure,
         return False
 
 
+def _configure_matplotlib_responsive(fig: matplotlib.figure.Figure) -> None:
+    """
+    Configure matplotlib figure for responsive display.
+    
+    Args:
+        fig: Matplotlib figure to configure
+    """
+    try:
+        # Set responsive figure size based on content
+        fig.tight_layout(pad=2.0)
+        
+        # Configure for better mobile display
+        fig.patch.set_facecolor('white')
+        
+        # Adjust font sizes for better readability
+        for ax in fig.axes:
+            ax.tick_params(labelsize=10)
+            if ax.get_xlabel():
+                ax.set_xlabel(ax.get_xlabel(), fontsize=12)
+            if ax.get_ylabel():
+                ax.set_ylabel(ax.get_ylabel(), fontsize=12)
+            if ax.get_title():
+                ax.set_title(ax.get_title(), fontsize=14, fontweight='bold')
+        
+        # Ensure legend fits properly
+        for ax in fig.axes:
+            legend = ax.get_legend()
+            if legend:
+                legend.set_bbox_to_anchor((1.05, 1), loc='upper left')
+                
+    except Exception as e:
+        logger.warning(f"Failed to configure responsive matplotlib: {str(e)}")
+
+
+def _cache_matplotlib_chart(fig: matplotlib.figure.Figure, cache_key: str) -> None:
+    """
+    Cache matplotlib chart as image bytes.
+    
+    Args:
+        fig: Matplotlib figure to cache
+        cache_key: Key to store the chart under
+    """
+    try:
+        # Manage cache size
+        if len(_CHART_CACHE) >= _CACHE_MAX_SIZE:
+            # Remove oldest entry (simple FIFO)
+            oldest_key = next(iter(_CHART_CACHE))
+            del _CHART_CACHE[oldest_key]
+        
+        # Save figure to bytes
+        buf = io.BytesIO()
+        fig.savefig(buf, format='png', dpi=100, bbox_inches='tight')
+        buf.seek(0)
+        
+        # Store in cache
+        _CHART_CACHE[cache_key] = buf.getvalue()
+        
+        logger.debug(f"Cached matplotlib chart with key: {cache_key}")
+        
+    except Exception as e:
+        logger.warning(f"Failed to cache matplotlib chart: {str(e)}")
+
+
 def render_plotly_chart(fig: Union[PlotlyFigure, go.Figure], 
                        title: Optional[str] = None,
                        use_container_width: bool = True,
-                       height: Optional[int] = None) -> bool:
+                       height: Optional[int] = None,
+                       cache_key: Optional[str] = None) -> bool:
     """
-    Render plotly charts in Streamlit.
+    Render plotly charts in Streamlit with responsive sizing and caching.
     
     Args:
         fig: Plotly figure object
         title: Optional title for the chart
         use_container_width: Whether to use full container width
         height: Optional height for the chart
+        cache_key: Optional cache key for chart caching
         
     Returns:
         bool: True if rendering successful, False otherwise
@@ -90,16 +176,21 @@ def render_plotly_chart(fig: Union[PlotlyFigure, go.Figure],
             logger.error(f"Expected Plotly Figure, got {type(fig)}")
             return False
         
+        # Check cache first if cache_key is provided
+        if cache_key and cache_key in _CHART_CACHE:
+            cached_fig = _CHART_CACHE[cache_key]
+            if title:
+                st.subheader(title)
+            st.plotly_chart(cached_fig, use_container_width=use_container_width, height=height)
+            logger.info("Rendered plotly chart from cache")
+            return True
+        
         # Add title if provided
         if title:
             st.subheader(title)
         
-        # Configure figure layout for better display
-        fig.update_layout(
-            showlegend=True,
-            margin=dict(l=0, r=0, t=30, b=0),
-            font=dict(size=12)
-        )
+        # Configure figure layout for responsive display
+        _configure_plotly_responsive(fig, height)
         
         # Render the chart
         st.plotly_chart(
@@ -107,6 +198,10 @@ def render_plotly_chart(fig: Union[PlotlyFigure, go.Figure],
             use_container_width=use_container_width,
             height=height
         )
+        
+        # Cache the chart if cache_key is provided
+        if cache_key:
+            _cache_plotly_chart(fig, cache_key)
         
         logger.info("Successfully rendered plotly chart")
         return True
@@ -116,28 +211,158 @@ def render_plotly_chart(fig: Union[PlotlyFigure, go.Figure],
         return False
 
 
+def _configure_plotly_responsive(fig: Union[PlotlyFigure, go.Figure], height: Optional[int] = None) -> None:
+    """
+    Configure plotly figure for responsive display.
+    
+    Args:
+        fig: Plotly figure to configure
+        height: Optional height constraint
+    """
+    try:
+        # Responsive layout configuration
+        responsive_layout = {
+            'showlegend': True,
+            'margin': dict(l=50, r=50, t=50, b=50),
+            'font': dict(size=12),
+            'autosize': True,
+            'paper_bgcolor': 'white',
+            'plot_bgcolor': 'white',
+            'hovermode': 'closest'
+        }
+        
+        # Add height if specified
+        if height:
+            responsive_layout['height'] = height
+        
+        # Configure for mobile responsiveness
+        responsive_layout.update({
+            'xaxis': dict(
+                showgrid=True,
+                gridwidth=1,
+                gridcolor='lightgray',
+                tickfont=dict(size=10)
+            ),
+            'yaxis': dict(
+                showgrid=True,
+                gridwidth=1,
+                gridcolor='lightgray',
+                tickfont=dict(size=10)
+            )
+        })
+        
+        fig.update_layout(**responsive_layout)
+        
+        # Configure legend for better mobile display
+        fig.update_layout(
+            legend=dict(
+                orientation="h",
+                yanchor="bottom",
+                y=1.02,
+                xanchor="right",
+                x=1
+            )
+        )
+        
+    except Exception as e:
+        logger.warning(f"Failed to configure responsive plotly: {str(e)}")
+
+
+def _cache_plotly_chart(fig: Union[PlotlyFigure, go.Figure], cache_key: str) -> None:
+    """
+    Cache plotly chart.
+    
+    Args:
+        fig: Plotly figure to cache
+        cache_key: Key to store the chart under
+    """
+    try:
+        # Manage cache size
+        if len(_CHART_CACHE) >= _CACHE_MAX_SIZE:
+            # Remove oldest entry (simple FIFO)
+            oldest_key = next(iter(_CHART_CACHE))
+            del _CHART_CACHE[oldest_key]
+        
+        # Store figure in cache (plotly figures are JSON serializable)
+        _CHART_CACHE[cache_key] = fig
+        
+        logger.debug(f"Cached plotly chart with key: {cache_key}")
+        
+    except Exception as e:
+        logger.warning(f"Failed to cache plotly chart: {str(e)}")
+
+
+def generate_chart_cache_key(chart_data: Any, title: Optional[str] = None, 
+                            query: Optional[str] = None) -> str:
+    """
+    Generate a cache key for chart data.
+    
+    Args:
+        chart_data: Chart data to generate key for
+        title: Optional chart title
+        query: Optional query that generated the chart
+        
+    Returns:
+        str: Cache key
+    """
+    try:
+        # Create a string representation of the chart data
+        key_components = []
+        
+        if title:
+            key_components.append(f"title:{title}")
+        
+        if query:
+            key_components.append(f"query:{query}")
+        
+        # Add chart type
+        key_components.append(f"type:{type(chart_data).__name__}")
+        
+        # For DataFrames, use shape and column names
+        if isinstance(chart_data, pd.DataFrame):
+            key_components.append(f"shape:{chart_data.shape}")
+            key_components.append(f"cols:{','.join(chart_data.columns)}")
+        
+        # Create hash of the combined key
+        key_string = "|".join(key_components)
+        return hashlib.md5(key_string.encode()).hexdigest()
+        
+    except Exception as e:
+        logger.warning(f"Failed to generate cache key: {str(e)}")
+        return f"fallback_{hash(str(chart_data))}"
+
+
 def render_chart(chart_data: Any, 
                 title: Optional[str] = None,
-                fallback_message: Optional[str] = None) -> bool:
+                fallback_message: Optional[str] = None,
+                query: Optional[str] = None,
+                enable_caching: bool = True) -> bool:
     """
-    Universal chart renderer that handles different chart types.
+    Universal chart renderer that handles different chart types with caching.
     
     Args:
         chart_data: Chart data (matplotlib figure, plotly figure, or other)
         title: Optional title for the chart
         fallback_message: Custom fallback message for errors
+        query: Optional query that generated the chart (for caching)
+        enable_caching: Whether to enable chart caching
         
     Returns:
         bool: True if rendering successful, False otherwise
     """
     try:
+        # Generate cache key if caching is enabled
+        cache_key = None
+        if enable_caching:
+            cache_key = generate_chart_cache_key(chart_data, title, query)
+        
         # Handle matplotlib figures
         if isinstance(chart_data, matplotlib.figure.Figure):
-            return render_matplotlib_chart(chart_data, title)
+            return render_matplotlib_chart(chart_data, title, cache_key=cache_key)
         
         # Handle plotly figures
         elif isinstance(chart_data, (PlotlyFigure, go.Figure)):
-            return render_plotly_chart(chart_data, title)
+            return render_plotly_chart(chart_data, title, cache_key=cache_key)
         
         # Handle pandas DataFrames as tables
         elif isinstance(chart_data, pd.DataFrame):
@@ -179,6 +404,27 @@ def render_chart(chart_data: Any,
     except Exception as e:
         logger.error(f"Error in universal chart renderer: {str(e)}")
         return handle_chart_error(str(e), fallback_message)
+
+
+def clear_chart_cache() -> None:
+    """Clear the chart cache to free memory."""
+    global _CHART_CACHE
+    _CHART_CACHE.clear()
+    logger.info("Chart cache cleared")
+
+
+def get_cache_stats() -> Dict[str, Any]:
+    """
+    Get chart cache statistics.
+    
+    Returns:
+        Dict with cache statistics
+    """
+    return {
+        'cache_size': len(_CHART_CACHE),
+        'max_size': _CACHE_MAX_SIZE,
+        'cache_keys': list(_CHART_CACHE.keys())
+    }
 
 
 def _render_image_data(image_data: Union[bytes, str], title: Optional[str] = None) -> bool:
