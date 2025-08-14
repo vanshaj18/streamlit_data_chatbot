@@ -1,5 +1,5 @@
 """
-Data Chatbot Dashboard - Main Application
+x - Main Application
 A Streamlit-based web application for data analysis through natural language queries.
 """
 
@@ -25,6 +25,9 @@ from components.chat_interface import (
     display_text_response
 )
 from services.pandas_agent import PandasAgent
+from dotenv import load_dotenv
+
+load_dotenv()
 
 
 def initialize_agent_if_needed() -> Optional[PandasAgent]:
@@ -41,13 +44,14 @@ def initialize_agent_if_needed() -> Optional[PandasAgent]:
             if df is not None:
                 # Create and initialize agent
                 agent = PandasAgent()
+                print(agent.is_initialized())
                 success = agent.initialize_agent(df)
                 
                 if success:
                     set_agent(agent)
                     return agent
                 else:
-                    raise RuntimeError("PandasAI agent could not be initialized. Please ensure you have set your GooglePalm_API_KEY environment variable.")
+                    raise RuntimeError("PandasAI agent could not be initialized. Please ensure you have set your GEMINI_API_KEY environment variable.")
         
         return get_agent()
     
@@ -69,11 +73,13 @@ def process_user_query(query: str) -> None:
     def _process_query():
         # Ensure agent is initialized
         agent = initialize_agent_if_needed()
+
+        print("agent: ", agent)
         
         if agent is None:
             error_info = handle_query_error(
                 """Unable to initialize data analysis agent. 
-                Please ensure your data is uploaded and GooglePalm_API_KEY is set.""",
+                Please ensure your data is uploaded and API KEY is set.""",
                 query,
                 show_ui=False
             )
@@ -91,7 +97,7 @@ def process_user_query(query: str) -> None:
             return
         
         # Show processing indicator
-        with st.spinner("Analyzing your query..."):
+        with st.spinner("Analyzing the query..."):
             # Process the query through the agent
             response = agent.process_query(query)
             
@@ -175,6 +181,36 @@ def render_sidebar():
             else:
                 st.warning("⚠️ Upload data to enable agent")
         
+        # Performance and Memory section
+        st.subheader("⚡ Performance")
+        if session_summary.get('memory_usage'):
+            memory_info = session_summary['memory_usage']
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                st.metric("Data Memory", f"{memory_info['dataframe_memory_mb']:.1f} MB")
+            with col2:
+                st.metric("Chat Memory", f"{memory_info['chat_memory_mb']:.1f} MB")
+            
+            # Memory optimization button
+            if st.button("🧹 Optimize Memory", help="Clean up memory usage"):
+                from utils.session_manager import optimize_session_memory
+                result = optimize_session_memory()
+                if result['optimization_successful']:
+                    st.success("Memory optimized successfully!")
+                else:
+                    st.error("Memory optimization failed")
+                st.rerun()
+        
+        # Chart cache info
+        try:
+            from components.visualization import get_cache_stats
+            cache_stats = get_cache_stats()
+            if cache_stats['cache_size'] > 0:
+                st.write(f"**Chart Cache:** {cache_stats['cache_size']}/{cache_stats['max_size']} charts")
+        except ImportError:
+            pass
+        
         # Debug mode toggle
         st.subheader("🔧 Debug Options")
         debug_mode = st.checkbox("Enable debug mode", value=False)
@@ -183,15 +219,22 @@ def render_sidebar():
         if debug_mode:
             with st.expander("Session Debug Info"):
                 st.json(session_summary)
+            
+            with st.expander("Performance Stats"):
+                try:
+                    from components.visualization import get_cache_stats
+                    cache_stats = get_cache_stats()
+                    st.json(cache_stats)
+                except ImportError:
+                    st.write("Visualization cache not available")
 
 
 def render_main_content():
     """Render the main content area with file upload and chat interface."""
     # Main header
-    st.title("📊 Data Analysis Dashboard")
+    st.title("Lalika - AI Analytics Bot")
     st.markdown("""
-    Welcome to your intelligent data analysis companion! Upload your CSV or Excel files 
-    and start asking questions in natural language to get insights and visualizations.
+    Welcome to your intelligent data analysis companion!
     """)
     
     # Check if this is the first visit
@@ -202,6 +245,15 @@ def render_main_content():
         2. Once your data is loaded, use the chat interface to ask questions
         3. Get instant insights and visualizations based on your queries
         """)
+        
+        # Show example queries for new users
+        from components.example_queries import render_example_queries, render_quick_start_guide
+        
+        # Quick start guide
+        render_quick_start_guide()
+        
+        # Example queries
+        render_example_queries(show_context_examples=True)
     
     # Create layout columns
     col1, col2 = st.columns([1, 2])
@@ -209,10 +261,22 @@ def render_main_content():
     with col1:
         st.header("📁 Data Upload")
         render_file_upload()
+        
+        # Show data-specific suggestions if data is loaded
+        if has_dataframe():
+            from components.example_queries import render_query_suggestions
+            df = get_dataframe()
+            if df is not None:
+                render_query_suggestions(list(df.columns))
     
     with col2:
         st.header("💬 Chat Interface")
         render_chat_interface()
+        
+        # Show help section
+        if has_dataframe():
+            from components.example_queries import render_help_section
+            render_help_section()
 
 
 def handle_query_processing():
@@ -221,6 +285,8 @@ def handle_query_processing():
     # This will be triggered by the chat interface when a user submits a query
     if 'pending_query' in st.session_state and st.session_state.pending_query:
         query = st.session_state.pending_query
+        print("user query: ", query)
+
         st.session_state.pending_query = None  # Clear the pending query
         
         # Process the query
@@ -235,15 +301,16 @@ def main():
         
         # Configure Streamlit page
         st.set_page_config(
-            page_title="Data Chatbot Dashboard",
+            page_title="Lalika - AI Analytics Bot",
             page_icon="☄❤️",
             layout="wide",
             initial_sidebar_state="expanded",
             menu_items={
                 'Get Help': 'https://github.com/vanshaj18/streamlit_data_chatbot',
                 'Report a bug': 'https://github.com/vanshaj18/streamlit_data_chatbot/issues',
-                'About': """"
-                A multi-modal intelligent data analysis tool powered by PandasAI. Upload your data and ask questions in natural language!
+                'About': 
+                """"
+                    A multi-modal intelligent data analysis tool powered by PandasAI. Upload your data and ask questions in natural language!
                 """
             }
         )

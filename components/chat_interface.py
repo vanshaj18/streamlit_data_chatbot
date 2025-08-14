@@ -118,8 +118,19 @@ def handle_user_input():
         error_info = handle_query_error("No dataset loaded", None, show_ui=True)
         return None
     
+    # Check for suggested query from example queries component
+    from components.example_queries import get_suggested_query
+    suggested_query = get_suggested_query()
+    
     # Create input field with unique key to prevent conflicts
-    user_query = st.chat_input("Ask a question about your data...")
+    # Pre-fill with suggested query if available
+    if suggested_query:
+        # Use the suggested query
+        user_query = suggested_query
+        # Display it in the input (for user awareness)
+        st.chat_input("Ask a question about your data...", value=suggested_query, key="chat_input_with_suggestion")
+    else:
+        user_query = st.chat_input("Ask a question about your data...")
     
     if user_query:
         # Add user message to chat history
