@@ -230,7 +230,7 @@ class PandasAgent:
         if not self.api_key:
             self.logger.warning("GEMINI_API_KEY not found. Set GEMINI_API_KEY environment variable.")
     
-    def initialize_agent(self, dataframe: pd.DataFrame) -> bool:
+    def initialize_agent(self, dataframe: pd.DataFrame, model_name: str) -> bool:
         """
         Set up PandasAI with DataFrame.
         
@@ -255,7 +255,7 @@ class PandasAgent:
         try:
             # Configure LiteLLM for Gemini API with proper authentication
             llm = LiteLLM(
-                model='gemini/gemini-2.0-flash',  # Use stable Gemini 2.0 Flash model
+                model=f'{model_name}',
                 api_key=self.api_key,
                 temperature=0.1,
                 # Explicitly set the API base to avoid Google Cloud ADC issues
@@ -270,14 +270,29 @@ class PandasAgent:
             # Ensure the DataFrame has a consistent name for SQL generation using our safeguard function
             df = _ensure_table_name_df(df_copy)
             
+            # Generate dynamic chart save path with file_name_plot_timestamp format
+            from utils.session_manager import get_file_info
+            file_info = get_file_info()
+            
+            if file_info and file_info.filename:
+                # Extract filename without extension
+                base_filename = file_info.filename.rsplit('.', 1)[0]
+                # Create timestamp
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                # Create chart filename pattern
+                chart_filename_pattern = f"{base_filename}_plot_{timestamp}"
+                chart_save_path = f"exports/charts/{chart_filename_pattern}/"
+            else:
+                chart_save_path = "exports/charts/"
+            
             # Create the Agent with configuration that avoids serialization issues
             config = {
                 "llm": llm,
                 "verbose": True,
                 "enable_cache": False,  # Disable caching to avoid serialization issues
                 "save_charts": True,
-                "save_charts_path": "exports/charts/",
-                "custom_whitelisted_dependencies": ["matplotlib", "plotly"], # no seaborn
+                "save_charts_path": chart_save_path,
+                "custom_whitelisted_dependencies": ["matplotlib"], # no seaborn
                 "open_charts": False,  # Don't auto-open charts
                 "save_logs": False,  # Disable log saving to avoid serialization
                 "response_parser": None,  # Disable response parser to avoid serialization

@@ -17,7 +17,7 @@ A powerful, intelligent web application for data analysis through natural langua
 
 ### Prerequisites
 
-- Python 3.8 or higher
+- Python >= 3.10 < 3.12 (PandasAI beta 3.0 needs python < 3.12)
 - pip package manager
 
 ### Installation

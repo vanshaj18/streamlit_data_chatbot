@@ -46,7 +46,7 @@ class TestPandasAgent:
     
     def test_init_with_env_api_key(self):
         """Test initialization with API key from environment."""
-        with patch.dict(os.environ, {'GooglePalm_API_KEY': self.test_api_key}):
+        with patch.dict(os.environ, {'GEMINI_API_KEY': self.test_api_key}):
             agent = PandasAgent()
             assert agent.api_key == self.test_api_key
     

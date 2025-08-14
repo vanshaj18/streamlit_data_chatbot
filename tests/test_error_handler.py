@@ -88,7 +88,7 @@ class TestErrorHandler:
         test_cases = [
             ("file size", "The file is too large. Please use a file smaller than 50MB."),
             ("unsupported format", "This file format is not supported. Please use CSV or Excel files."),
-            ("api key", "API key issue. Please check your GooglePalm API key configuration."),
+            ("api key", "API key issue. Please check your GEMINI_API_KEY configuration."),
             ("timeout", "The query is taking too long. Please try a simpler question."),
             ("matplotlib", "Error creating chart. Try asking for a different type of visualization.")
         ]

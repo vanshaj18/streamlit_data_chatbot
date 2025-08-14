@@ -45,7 +45,7 @@ def initialize_agent_if_needed() -> Optional[PandasAgent]:
                 # Create and initialize agent
                 agent = PandasAgent()
                 print(agent.is_initialized())
-                success = agent.initialize_agent(df)
+                success = agent.initialize_agent(df, model_name='gemini/gemini-2.0-flash')
                 
                 if success:
                     set_agent(agent)
