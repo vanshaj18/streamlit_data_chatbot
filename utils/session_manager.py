@@ -1,5 +1,5 @@
 """
-Session state management utilities.
+Session state management utilities with memory optimization.
 """
 
 import streamlit as st
@@ -7,6 +7,15 @@ import pandas as pd
 from dataclasses import dataclass, field
 from typing import List, Optional, Dict, Any, Union
 from datetime import datetime
+import sys
+import gc
+import logging
+
+logger = logging.getLogger(__name__)
+
+# Configuration for memory management
+MAX_CHAT_HISTORY = 100  # Maximum number of chat messages to keep
+MEMORY_CLEANUP_THRESHOLD = 50  # Clean up memory every N operations
 
 
 @dataclass
@@ -94,7 +103,7 @@ def update_dataframe(dataframe: pd.DataFrame, file_info: Dict[str, Any]) -> None
 def add_message(role: str, content: str, message_type: str = "text", 
                 chart_data: Optional[Any] = None) -> None:
     """
-    Append a message to chat history.
+    Append a message to chat history with memory management.
     
     Args:
         role: Either "user" or "agent"
@@ -113,6 +122,24 @@ def add_message(role: str, content: str, message_type: str = "text",
     )
     
     session_data.chat_history.append(message)
+    
+    # Manage chat history size to prevent memory issues
+    if len(session_data.chat_history) > MAX_CHAT_HISTORY:
+        # Remove oldest messages, keeping the most recent ones
+        messages_to_remove = len(session_data.chat_history) - MAX_CHAT_HISTORY
+        removed_messages = session_data.chat_history[:messages_to_remove]
+        session_data.chat_history = session_data.chat_history[messages_to_remove:]
+        
+        # Clean up chart data from removed messages to free memory
+        for msg in removed_messages:
+            if msg.chart_data is not None:
+                del msg.chart_data
+        
+        logger.info(f"Removed {messages_to_remove} old messages to manage memory")
+    
+    # Periodic memory cleanup
+    if len(session_data.chat_history) % MEMORY_CLEANUP_THRESHOLD == 0:
+        _cleanup_memory()
 
 
 def get_chat_history() -> List[ChatMessage]:
@@ -203,12 +230,15 @@ def clear_chat_history() -> None:
 
 def get_session_summary() -> Dict[str, Any]:
     """
-    Get a summary of the current session state.
+    Get a summary of the current session state with memory usage info.
     
     Returns:
         Dict[str, Any]: Summary of session state
     """
     session_data = get_session_data()
+    
+    # Calculate memory usage
+    memory_info = _get_memory_usage()
     
     return {
         'has_dataframe': session_data.dataframe is not None,
@@ -221,5 +251,151 @@ def get_session_summary() -> Dict[str, Any]:
             'row_count': session_data.file_info.row_count if session_data.file_info else None,
             'column_count': len(session_data.file_info.columns) if session_data.file_info else None
         } if session_data.file_info else None,
-        'is_initialized': session_data.is_initialized
+        'is_initialized': session_data.is_initialized,
+        'memory_usage': memory_info
     }
+
+
+def _cleanup_memory() -> None:
+    """
+    Perform memory cleanup operations.
+    """
+    try:
+        # Force garbage collection
+        gc.collect()
+        
+        # Clear visualization cache if it exists
+        try:
+            from components.visualization import clear_chart_cache
+            clear_chart_cache()
+        except ImportError:
+            pass
+        
+        logger.debug("Memory cleanup completed")
+        
+    except Exception as e:
+        logger.warning(f"Memory cleanup failed: {str(e)}")
+
+
+def _get_memory_usage() -> Dict[str, Any]:
+    """
+    Get current memory usage statistics.
+    
+    Returns:
+        Dict with memory usage information
+    """
+    try:
+        session_data = get_session_data()
+        
+        # Calculate approximate memory usage
+        dataframe_memory = 0
+        if session_data.dataframe is not None:
+            dataframe_memory = session_data.dataframe.memory_usage(deep=True).sum()
+        
+        chat_memory = sys.getsizeof(session_data.chat_history)
+        for msg in session_data.chat_history:
+            chat_memory += sys.getsizeof(msg.content)
+            if msg.chart_data is not None:
+                chat_memory += sys.getsizeof(msg.chart_data)
+        
+        return {
+            'dataframe_memory_mb': round(dataframe_memory / (1024 * 1024), 2),
+            'chat_memory_mb': round(chat_memory / (1024 * 1024), 2),
+            'total_messages': len(session_data.chat_history),
+            'max_messages': MAX_CHAT_HISTORY
+        }
+        
+    except Exception as e:
+        logger.warning(f"Failed to calculate memory usage: {str(e)}")
+        return {
+            'dataframe_memory_mb': 0,
+            'chat_memory_mb': 0,
+            'total_messages': 0,
+            'max_messages': MAX_CHAT_HISTORY
+        }
+
+
+def optimize_session_memory() -> Dict[str, Any]:
+    """
+    Optimize session memory usage and return statistics.
+    
+    Returns:
+        Dict with optimization results
+    """
+    try:
+        session_data = get_session_data()
+        
+        # Get initial memory usage
+        initial_memory = _get_memory_usage()
+        
+        # Optimize DataFrame if present
+        if session_data.dataframe is not None:
+            original_memory = session_data.dataframe.memory_usage(deep=True).sum()
+            
+            # Optimize data types (similar to file_handler optimization)
+            session_data.dataframe = _optimize_dataframe_memory(session_data.dataframe)
+            
+            optimized_memory = session_data.dataframe.memory_usage(deep=True).sum()
+            memory_saved = original_memory - optimized_memory
+            
+            logger.info(f"DataFrame memory optimized: saved {memory_saved / (1024*1024):.2f} MB")
+        
+        # Clean up old chart data in messages
+        chart_data_cleaned = 0
+        for msg in session_data.chat_history[:-20]:  # Keep recent 20 messages with charts
+            if msg.chart_data is not None:
+                del msg.chart_data
+                msg.chart_data = None
+                chart_data_cleaned += 1
+        
+        # Force cleanup
+        _cleanup_memory()
+        
+        # Get final memory usage
+        final_memory = _get_memory_usage()
+        
+        return {
+            'initial_memory': initial_memory,
+            'final_memory': final_memory,
+            'chart_data_cleaned': chart_data_cleaned,
+            'optimization_successful': True
+        }
+        
+    except Exception as e:
+        logger.error(f"Session memory optimization failed: {str(e)}")
+        return {
+            'optimization_successful': False,
+            'error': str(e)
+        }
+
+
+def _optimize_dataframe_memory(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Optimize DataFrame memory usage by downcasting numeric types.
+    
+    Args:
+        df: DataFrame to optimize
+        
+    Returns:
+        Optimized DataFrame
+    """
+    try:
+        optimized_df = df.copy()
+        
+        # Downcast numeric columns
+        for col in optimized_df.select_dtypes(include=['int64']).columns:
+            optimized_df[col] = pd.to_numeric(optimized_df[col], downcast='integer')
+        
+        for col in optimized_df.select_dtypes(include=['float64']).columns:
+            optimized_df[col] = pd.to_numeric(optimized_df[col], downcast='float')
+        
+        # Convert low-cardinality object columns to category
+        for col in optimized_df.select_dtypes(include=['object']).columns:
+            if optimized_df[col].nunique() / len(optimized_df) < 0.5:
+                optimized_df[col] = optimized_df[col].astype('category')
+        
+        return optimized_df
+        
+    except Exception as e:
+        logger.warning(f"DataFrame memory optimization failed: {str(e)}")
+        return df
