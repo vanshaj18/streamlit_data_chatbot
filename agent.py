@@ -1,3 +1,8 @@
+# // Copyright (c) 2025 Vanshaj Kerni
+# // Licensed under the Custom NonCommercial Attribution License (CNCA) v1.0.
+# // See LICENSE.md in the project root for details.
+# // Attribution must include project name, author, and a link to the original repo.
+
 """
 x - Main Application
 A Streamlit-based web application for data analysis through natural language queries.
@@ -73,8 +78,6 @@ def process_user_query(query: str) -> None:
     def _process_query():
         # Ensure agent is initialized
         agent = initialize_agent_if_needed()
-
-        print("agent: ", agent)
         
         if agent is None:
             error_info = handle_query_error(
@@ -232,10 +235,8 @@ def render_sidebar():
 def render_main_content():
     """Render the main content area with file upload and chat interface."""
     # Main header
-    st.title("Lalika - AI Analytics Bot")
-    st.markdown("""
-    Welcome to your intelligent data analysis companion!
-    """)
+    st.title("Lalika - Analytics Companion")
+    st.markdown(""" Welcome to your intelligent data analysis companion!""")
     
     # Check if this is the first visit
     if not has_dataframe() and not get_chat_stats()["total_messages"]:
@@ -301,7 +302,7 @@ def main():
         
         # Configure Streamlit page
         st.set_page_config(
-            page_title="Lalika - AI Analytics Bot",
+            page_title="Lalika - Analytics Companion",
             page_icon="☄❤️",
             layout="wide",
             initial_sidebar_state="expanded",
@@ -310,7 +311,7 @@ def main():
                 'Report a bug': 'https://github.com/vanshaj18/streamlit_data_chatbot/issues',
                 'About': 
                 """"
-                    A multi-modal intelligent data analysis tool powered by PandasAI. Upload your data and ask questions in natural language!
+                    A multi-modal intelligent data analysis agent powered by AI. Upload your data and ask questions in natural language!
                 """
             }
         )
@@ -327,10 +328,11 @@ def main():
         # Footer
         st.markdown("---")
         st.markdown(
-            "<div style='text-align: center; color: #666;'>"
-            "Built with ❤️ using Streamlit and PandasAI"
-            "</div>", 
-            unsafe_allow_html=True
+            """<div style=text-align:center; color: #666;>
+            Built with ❤️ using Streamlit and <a href = https://docs.pandas-ai.com/v3/getting-started> PandasAI </a> <br>
+            <a href="https://github.com/vanshaj18">
+                <img src="https://cdn-icons-png.flaticon.com/512/25/25231.png" alt="github" width="30" height="30">
+            </a> </div>""" , unsafe_allow_html=True
         )
     
     # Use safe_execute for the entire application

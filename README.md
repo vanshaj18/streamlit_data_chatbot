@@ -211,3 +211,7 @@ If you encounter any issues or have questions:
 ---
 
 **Built with ❤️ using Streamlit and PandasAI**
+
+--
+
+This project is licensed under the Creative Commons Attribution-NonCommercial 4.0 International License (CC BY-NC 4.0). See the LICENSE file for details.
