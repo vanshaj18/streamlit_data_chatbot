@@ -1,4 +1,4 @@
-# Data Chatbot Dashboard
+# Lalika - Data Chatbot Dashboard
 
 A powerful, intelligent web application for data analysis through natural language queries. Built with Streamlit and powered by PandasAI, this dashboard allows users to upload CSV/Excel files and analyze their data using conversational AI.
 
