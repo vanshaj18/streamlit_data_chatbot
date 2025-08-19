@@ -222,7 +222,7 @@ class PandasAgent:
         self.dataframe = None
         self.api_key = api_key or os.getenv("GEMINI_API_KEY")
         self.logger = logging.getLogger(__name__)
-        self.max_retries = 2
+        self.max_retries = 4
         
         if not PANDASAI_AVAILABLE:
             self.logger.warning("PandasAI is not available. Install with: pip install pandasai")
@@ -584,14 +584,14 @@ class PandasAgent:
             if hasattr(response, 'savefig') or hasattr(response, 'figure'):
                 return True
             
-            # Check for plotly figures
-            if hasattr(response, 'show') or hasattr(response, 'to_html'):
-                return True
+            # # Check for plotly figures
+            # if hasattr(response, 'show') or hasattr(response, 'to_html'):
+            #     return True
             
             # Check type string for matplotlib/plotly references
             response_type_str = str(type(response)).lower()
             if any(chart_lib in response_type_str for chart_lib in 
-                   ['matplotlib', 'plotly', 'figure', 'axes']):
+                   ['matplotlib', 'figure', 'axes']):
                 return True
             
             # Check for common chart object attributes
@@ -703,7 +703,12 @@ class PandasAgent:
         """
 
         if self.api_key is None or self.dataframe is None or self.agent is None:
-            self.logger.error(f"Error: Either API key is missing or dataframe is not loading or something with agent")
+            self.logger.error(
+                f"Error: Missing resources - "
+                f"api_key={self.api_key is not None}, "
+                f"dataframe={self.dataframe is not None}, "
+                f"agent={self.agent is not None}"
+            )
 
         return (
             PANDASAI_AVAILABLE and 

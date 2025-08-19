@@ -78,12 +78,11 @@ def _render_chart(chart_data: Any):
     Render chart data based on its type using the visualization system.
     
     Args:
-        chart_data: Chart data (matplotlib figure, plotly figure, or other)
+        chart_data: Chart data (matplotlib figure)
     """
     from components.visualization import render_chart, handle_chart_error
     
     try:
-        # Use the universal chart renderer
         success = render_chart(
             chart_data=chart_data,
             title=None,  # Title is handled by the chat message context

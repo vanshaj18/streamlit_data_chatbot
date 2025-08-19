@@ -42,12 +42,12 @@ Here are some example questions you can ask about your data:
 - "Show me the correlation between [column1] and [column2]"
 - "What percentage of values in [column_name] are missing?"
 
-### Filtering and Grouping
+<!-- ### Filtering and Grouping
 - "Show me all rows where [column_name] is greater than 100"
 - "Filter the data to show only [condition]"
 - "Group the data by [column_name] and show the count"
 - "What is the average [column1] for each [column2]?"
-- "Show me the top 10 values in [column_name]"
+- "Show me the top 10 values in [column_name]" -->
 
 ### Visualizations
 - "Create a bar chart of [column_name]"
@@ -57,12 +57,12 @@ Here are some example questions you can ask about your data:
 - "Make a pie chart of [column_name] distribution"
 - "Show me a heatmap of correlations between numeric columns"
 
-### Advanced Analysis
+<!-- ### Advanced Analysis
 - "Identify outliers in [column_name]"
 - "Show me the trend in [column_name] over [time_column]"
 - "Compare [column1] across different [column2] categories"
 - "Find patterns in my data"
-- "What insights can you provide about this dataset?"
+- "What insights can you provide about this dataset?" -->
 
 ## Sample Datasets
 
@@ -164,6 +164,16 @@ Example questions:
 - The system automatically manages memory
 - Very large datasets may require simplification
 - Clear chat history if needed using the sidebar button
+
+**Visualization Issues:**
+- Plots, charts are prepared by LLM not any backend code.
+- It sometime runs into cold start issues
+- False table name issues
+- Complex charts
+
+**PandasAI issue:**
+- PandasAI is prone to LLM code generation errors
+
 
 ### Getting Help
 
