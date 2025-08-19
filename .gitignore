@@ -31,10 +31,6 @@ downloads/
 .DS_Store
 .DS_Store?
 
-# Logs
-*.log
-logs/
-
 # Temporary files
 *.tmp
 *.temp
